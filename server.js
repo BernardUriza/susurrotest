@@ -1,38 +1,18 @@
 const express = require('express');
 const multer = require('multer');
+const { nodewhisper } = require('nodejs-whisper');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
-const { pipeline, env } = require('@xenova/transformers');
-const WaveFile = require('wavefile').WaveFile;
-
-// Configurar caché local para modelos
-env.cacheDir = './models';
-env.localURL = './models';
 
 const app = express();
 const PORT = 3001;
 
-// Variable para almacenar el pipeline
-let transcriber = null;
-
-// Inicializar el modelo de Whisper
-async function initializeModel() {
-  try {
-    console.log('Inicializando modelo Whisper...');
-    transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en');
-    console.log('Modelo Whisper cargado exitosamente');
-  } catch (error) {
-    console.error('Error al cargar el modelo:', error);
-  }
-}
-
 // Middlewares
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
-// Configuración de multer para archivos
+// Configuración de multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, 'uploads/');
@@ -63,39 +43,6 @@ const ensureDirectoryExists = (dir) => {
 
 ensureDirectoryExists('./uploads');
 ensureDirectoryExists('./test-audio');
-ensureDirectoryExists('./models');
-
-// Función para convertir WAV a formato compatible
-async function prepareAudioFile(audioPath) {
-  try {
-    const audioData = fs.readFileSync(audioPath);
-    const wav = new WaveFile(audioData);
-    
-    // Convertir a 16kHz si es necesario
-    wav.toSampleRate(16000);
-    
-    // Obtener datos de audio como Float32Array
-    const samples = wav.getSamples(true, Float32Array);
-    
-    // Si el audio es estéreo, convertir a mono promediando canales
-    if (samples.length > 1) {
-      const monoSamples = new Float32Array(samples[0].length);
-      for (let i = 0; i < samples[0].length; i++) {
-        let sum = 0;
-        for (let channel = 0; channel < samples.length; channel++) {
-          sum += samples[channel][i];
-        }
-        monoSamples[i] = sum / samples.length;
-      }
-      return monoSamples;
-    }
-    
-    return samples[0]; // Retornar el canal mono si ya es mono
-  } catch (error) {
-    console.error('Error al procesar archivo de audio:', error);
-    throw error;
-  }
-}
 
 // ENDPOINT 1: Transcribir archivo existente en servidor
 app.post('/api/transcribe-server-file', async (req, res) => {
@@ -105,13 +52,7 @@ app.post('/api/transcribe-server-file', async (req, res) => {
     if (!filename) {
       return res.status(400).json({ 
         error: 'Se requiere el nombre del archivo',
-        example: { "filename": "sample.wav" }
-      });
-    }
-
-    if (!transcriber) {
-      return res.status(503).json({ 
-        error: 'El modelo de Whisper aún se está cargando. Por favor, intenta de nuevo en unos segundos.'
+        example: { "filename": "jfk.wav" }
       });
     }
 
@@ -126,37 +67,46 @@ app.post('/api/transcribe-server-file', async (req, res) => {
       });
     }
 
-    console.log(`Procesando archivo: ${audioPath}`);
+    console.log(`[${new Date().toISOString()}] Procesando: ${audioPath}`);
     
     const startTime = Date.now();
     
-    // Preparar audio y transcribir
-    const audioData = await prepareAudioFile(audioPath);
-    const result = await transcriber(audioData, {
-      return_timestamps: true,
-      chunk_length_s: 30,
-      language: 'english',
-      task: 'transcribe'
+    // USAR NODEJS-WHISPER (NO Hugging Face)
+    const result = await nodewhisper(audioPath, {
+      modelName: 'tiny.en',
+      removeWavFileAfterTranscription: false,
+      whisperOptions: {
+        wordTimestamps: true,
+        outputInJson: true,
+        language: 'en'
+      }
     });
 
     const processingTime = Date.now() - startTime;
 
+    console.log(`[${new Date().toISOString()}] Resultado:`, result);
+
+    // Extraer texto del resultado
+    const transcriptText = result.text || result || '';
+
     res.json({
       success: true,
       filename: filename,
-      transcript: result.text,
+      transcript: transcriptText,
+      raw_result: result,
       processing_time_ms: processingTime,
       audio_path: audioPath,
-      model_used: 'whisper-tiny.en',
+      model_used: 'nodejs-whisper tiny.en',
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Error en transcripción:', error);
+    console.error(`[${new Date().toISOString()}] Error en transcripción:`, error);
     res.status(500).json({
       error: 'Error al transcribir el archivo',
       details: error.message,
-      filename: req.body.filename
+      filename: req.body.filename,
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -165,142 +115,88 @@ app.post('/api/transcribe-server-file', async (req, res) => {
 app.post('/api/transcribe-upload', upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ 
-        error: 'No se ha subido ningún archivo de audio' 
-      });
-    }
-
-    if (!transcriber) {
-      return res.status(503).json({ 
-        error: 'El modelo de Whisper aún se está cargando. Por favor, intenta de nuevo en unos segundos.'
-      });
+      return res.status(400).json({ error: 'No se subió ningún archivo de audio' });
     }
 
     const audioPath = req.file.path;
-    console.log(`Archivo recibido: ${req.file.originalname}`);
-    console.log(`Guardado como: ${audioPath}`);
-
+    console.log(`[${new Date().toISOString()}] Archivo subido: ${req.file.originalname}`);
+    
     const startTime = Date.now();
     
-    // Preparar audio y transcribir
-    const audioData = await prepareAudioFile(audioPath);
-    const result = await transcriber(audioData, {
-      return_timestamps: true,
-      chunk_length_s: 30,
-      language: 'english',
-      task: 'transcribe'
+    const result = await nodewhisper(audioPath, {
+      modelName: 'tiny.en',
+      removeWavFileAfterTranscription: false,
+      whisperOptions: {
+        wordTimestamps: true,
+        outputInJson: true
+      }
     });
 
     const processingTime = Date.now() - startTime;
-
-    // Limpiar archivo después de procesar (opcional)
-    // fs.unlinkSync(audioPath);
+    const transcriptText = result.text || result || '';
 
     res.json({
       success: true,
-      original_filename: req.file.originalname,
-      saved_filename: req.file.filename,
-      transcript: result.text,
+      filename: req.file.filename,
+      original_name: req.file.originalname,
+      transcript: transcriptText,
       processing_time_ms: processingTime,
-      file_size_mb: (req.file.size / 1024 / 1024).toFixed(2),
-      model_used: 'whisper-tiny.en',
+      file_size: req.file.size,
+      model_used: 'nodejs-whisper tiny.en',
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Error al procesar archivo:', error);
-    
-    // Limpiar archivo en caso de error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
+    console.error(`[${new Date().toISOString()}] Error:`, error);
     res.status(500).json({
-      error: 'Error al procesar el archivo de audio',
+      error: 'Error al transcribir el archivo',
       details: error.message
     });
   }
 });
 
 // ENDPOINT 3: Listar archivos disponibles
-app.get('/api/list-files', (req, res) => {
+app.get('/api/files', (req, res) => {
   try {
-    const testAudioDir = path.join(__dirname, 'test-audio');
-    const files = fs.readdirSync(testAudioDir)
-      .filter(file => file.endsWith('.wav') || file.endsWith('.mp3'))
-      .map(file => {
-        const filePath = path.join(testAudioDir, file);
-        const stats = fs.statSync(filePath);
-        return {
-          filename: file,
-          size_mb: (stats.size / 1024 / 1024).toFixed(2),
-          modified: stats.mtime
-        };
-      });
-
+    const testAudioFiles = fs.readdirSync(path.join(__dirname, 'test-audio'));
+    const uploadedFiles = fs.readdirSync(path.join(__dirname, 'uploads'));
+    
     res.json({
-      success: true,
-      directory: testAudioDir,
-      files: files,
-      count: files.length
+      test_audio_files: testAudioFiles,
+      uploaded_files: uploadedFiles,
+      total_files: testAudioFiles.length + uploadedFiles.length
     });
-
   } catch (error) {
-    res.status(500).json({
-      error: 'Error al listar archivos',
-      details: error.message
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // ENDPOINT 4: Health check
 app.get('/api/health', (req, res) => {
   res.json({
-    status: 'ok',
-    service: 'SusurroTest Server',
-    version: '1.0.0',
-    model: 'whisper-tiny.en',
-    model_loaded: transcriber !== null,
+    status: 'OK',
+    service: 'nodejs-whisper Test Server',
+    library: 'nodejs-whisper (NO Hugging Face)',
+    timestamp: new Date().toISOString(),
     endpoints: [
       'POST /api/transcribe-server-file',
-      'POST /api/transcribe-upload',
-      'GET /api/list-files',
+      'POST /api/transcribe-upload', 
+      'GET /api/files',
       'GET /api/health'
-    ],
-    timestamp: new Date().toISOString()
+    ]
   });
 });
 
-// Ruta raíz
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Servidor SusurroTest está funcionando',
-    docs: 'Usa /api/health para ver los endpoints disponibles',
-    model_status: transcriber ? 'Modelo cargado' : 'Modelo cargando...'
-  });
-});
-
-// Inicializar modelo y luego iniciar servidor
-initializeModel().then(() => {
-  app.listen(PORT, () => {
-    console.log('=================================');
-    console.log(`Servidor iniciado en http://localhost:${PORT}`);
-    console.log('=================================');
-    console.log('Endpoints disponibles:');
-    console.log('- POST /api/transcribe-server-file');
-    console.log('- POST /api/transcribe-upload');
-    console.log('- GET /api/list-files');
-    console.log('- GET /api/health');
-    console.log('=================================');
-  });
-});
-
-// Manejo de errores no capturados
-process.on('unhandledRejection', (error) => {
-  console.error('Error no manejado:', error);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Excepción no capturada:', error);
-  process.exit(1);
+// Iniciar servidor
+app.listen(PORT, () => {
+  console.log('='.repeat(50));
+  console.log(`🚀 Servidor nodejs-whisper en http://localhost:${PORT}`);
+  console.log('📚 Librería: nodejs-whisper (NO Hugging Face)');
+  console.log('='.repeat(50));
+  console.log('📋 Endpoints:');
+  console.log('   POST /api/transcribe-server-file');
+  console.log('   POST /api/transcribe-upload');
+  console.log('   GET  /api/files');
+  console.log('   GET  /api/health');
+  console.log('='.repeat(50));
 });
