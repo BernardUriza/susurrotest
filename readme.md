@@ -65,6 +65,54 @@ npm start
 curl -sSL https://raw.githubusercontent.com/tu-usuario/whisper-transcription-microservice/main/integrate-nextjs.sh | bash
 ```
 
+## 🤖 Automatización de la Integración
+
+Para facilitar el proceso, hemos creado un script que se encarga de clonar el repositorio del microservicio, crear la carpeta correspondiente dentro de la estructura de tu proyecto, y configurar todo automáticamente.
+
+### Pasos para usar el script
+
+1. **Opción 1: Ejecución directa desde internet**
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/tu-usuario/whisper-transcription-microservice/main/integrate-nextjs.sh | bash
+   ```
+
+2. **Opción 2: Descarga y ejecución local**
+   ```bash
+   # Descargar el script
+   wget https://raw.githubusercontent.com/tu-usuario/whisper-transcription-microservice/main/integrate-nextjs.sh
+   
+   # Dar permisos de ejecución
+   chmod +x integrate-nextjs.sh
+   
+   # Ejecutar con opciones personalizadas
+   ./integrate-nextjs.sh --service-name mi-whisper --repo-url https://github.com/mi-fork/whisper
+   ```
+
+### ¿Qué hace el script?
+
+- ✅ Detecta si estás en un proyecto Next.js
+- ✅ Crea la estructura de monorepo si no existe
+- ✅ Clona el microservicio en la ubicación correcta
+- ✅ Instala dependencias del sistema (ffmpeg, cmake, etc.)
+- ✅ Configura el microservicio automáticamente
+- ✅ Actualiza tu package.json con scripts útiles
+- ✅ Crea un cliente JavaScript listo para usar
+- ✅ Genera un componente React de ejemplo
+- ✅ Configura variables de entorno
+
+### Personalización del script
+
+```bash
+# Ver opciones disponibles
+./integrate-nextjs.sh --help
+
+# Integrar con nombre personalizado
+./integrate-nextjs.sh --service-name audio-service
+
+# Usar un fork del repositorio
+./integrate-nextjs.sh --repo-url https://github.com/mi-usuario/mi-fork
+```
+
 ## 🔧 Requisitos del Sistema
 
 ### Mínimos
