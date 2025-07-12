@@ -174,9 +174,11 @@ app.get('/api/files', (req, res) => {
 // ENDPOINT 4: Health check
 app.get('/api/health', (req, res) => {
   res.json({
-    status: 'OK',
-    service: 'nodejs-whisper Test Server',
-    library: 'nodejs-whisper (NO Hugging Face)',
+    status: 'healthy',
+    service: 'whisper-transcription-microservice',
+    version: '1.0.0',
+    library: 'nodejs-whisper',
+    uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     endpoints: [
       'POST /api/transcribe-server-file',
@@ -189,14 +191,18 @@ app.get('/api/health', (req, res) => {
 
 // Iniciar servidor
 app.listen(PORT, () => {
-  console.log('='.repeat(50));
-  console.log(`🚀 Servidor nodejs-whisper en http://localhost:${PORT}`);
-  console.log('📚 Librería: nodejs-whisper (NO Hugging Face)');
-  console.log('='.repeat(50));
-  console.log('📋 Endpoints:');
-  console.log('   POST /api/transcribe-server-file');
-  console.log('   POST /api/transcribe-upload');
-  console.log('   GET  /api/files');
-  console.log('   GET  /api/health');
-  console.log('='.repeat(50));
+  console.log(`
+${'='.repeat(60)}
+🎙️  Whisper Transcription Microservice v1.0.0
+🚀 Running at: http://localhost:${PORT}
+📡 API Ready for Integration
+${'='.repeat(60)}
+📋 Available Endpoints:
+   GET  /api/health                  - Service health check
+   GET  /api/files                   - List available files
+   POST /api/transcribe-upload       - Upload & transcribe
+   POST /api/transcribe-server-file  - Transcribe server file
+${'='.repeat(60)}
+💡 Integration: curl -sSL https://your-repo/integrate-nextjs.sh | bash
+${'='.repeat(60)}`);
 });

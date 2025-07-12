@@ -1,7 +1,7 @@
 {
-  "name": "whisper-test-server",
+  "name": "whisper-transcription-microservice",
   "version": "1.0.0",
-  "description": "Servidor de prueba para nodejs-whisper (NO Hugging Face)",
+  "description": "Microservicio de transcripción de audio con Whisper - Integrable en cualquier stack",
   "main": "server.js",
   "scripts": {
     "prestart": "npm run check-deps",
