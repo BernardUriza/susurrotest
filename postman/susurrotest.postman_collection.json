@@ -1,0 +1,84 @@
+{
+  "info": {
+    "name": "SusurroTest Server",
+    "description": "Colección para probar el servidor SusurroTest de transcripción de audio con nodejs-whisper",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3001/api/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["api", "health"]
+        }
+      }
+    },
+    {
+      "name": "Listar Archivos Disponibles",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3001/api/list-files",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["api", "list-files"]
+        }
+      }
+    },
+    {
+      "name": "Transcribir Archivo del Servidor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"filename\": \"sample.wav\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/api/transcribe-server-file",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["api", "transcribe-server-file"]
+        }
+      }
+    },
+    {
+      "name": "Subir y Transcribir Archivo",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "audio",
+              "type": "file",
+              "src": []
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:3001/api/transcribe-upload",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["api", "transcribe-upload"]
+        }
+      }
+    }
+  ]
+}
