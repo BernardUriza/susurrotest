@@ -71,14 +71,26 @@ async function prepareAudioFile(audioPath) {
     const audioData = fs.readFileSync(audioPath);
     const wav = new WaveFile(audioData);
     
-    // Convertir a 16kHz mono si es necesario
+    // Convertir a 16kHz si es necesario
     wav.toSampleRate(16000);
-    wav.toMono();
     
     // Obtener datos de audio como Float32Array
     const samples = wav.getSamples(true, Float32Array);
     
-    return samples[0]; // Retornar el canal mono
+    // Si el audio es estéreo, convertir a mono promediando canales
+    if (samples.length > 1) {
+      const monoSamples = new Float32Array(samples[0].length);
+      for (let i = 0; i < samples[0].length; i++) {
+        let sum = 0;
+        for (let channel = 0; channel < samples.length; channel++) {
+          sum += samples[channel][i];
+        }
+        monoSamples[i] = sum / samples.length;
+      }
+      return monoSamples;
+    }
+    
+    return samples[0]; // Retornar el canal mono si ya es mono
   } catch (error) {
     console.error('Error al procesar archivo de audio:', error);
     throw error;
